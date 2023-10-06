@@ -84,14 +84,10 @@ class _MyScenerState extends State<MyScener>
     _animationController.addListener(() => setState(() {}));
     _animationController.addStatusListener((status) async {
       if (status == AnimationStatus.completed) {
-        print("inside");
         _animationController.value = 0;
         _animationController.animateTo(1);
-        print(centerIdx);
         ++centerIdx;
       }
-
-      print(status);
 
       // if (status == AnimationStatus.completed) {
       //   print("inside");
@@ -102,7 +98,8 @@ class _MyScenerState extends State<MyScener>
       //   // ++centerIdx;
       // }
     });
-    _animationController.forward();
+
+    // _animationController.forward();
     // _animationController.reverse(from: 1);
     super.initState();
   }
