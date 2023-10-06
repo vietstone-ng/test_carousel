@@ -14,15 +14,6 @@ class _RotationSceneV1State extends State<RotationSceneV1> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text(
-      //     'carrousel',
-      //     style: TextStyle(fontSize: 13),
-      //   ),
-      //   centerTitle: false,
-      //   elevation: 12,
-      //   backgroundColor: Colors.transparent,
-      // ),
       body: Container(
         decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -79,7 +70,7 @@ class _MyScenerState extends State<MyScener>
     radioStep = (pi * 2) / numItems;
 
     _animationController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 3));
+        AnimationController(vsync: this, duration: const Duration(seconds: 5));
 
     _animationController.addListener(() => setState(() {}));
     _animationController.addStatusListener((status) async {
@@ -99,7 +90,7 @@ class _MyScenerState extends State<MyScener>
       // }
     });
 
-    // _animationController.forward();
+    _animationController.forward();
     // _animationController.reverse(from: 1);
     super.initState();
   }

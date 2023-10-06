@@ -1,9 +1,19 @@
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 int numItems = 10;
-var onSelectCard = ValueNotifier<int>(0);
+var onSelectCard = SelectCardNotifier(0);
+
+class SelectCardNotifier with ChangeNotifier {
+  SelectCardNotifier(this._value);
+
+  int _value = 0;
+  int get value => _value;
+  set value(int val) {
+    _value = val;
+    notifyListeners();
+  }
+}
 
 class RotationSceneV3 extends StatefulWidget {
   const RotationSceneV3({super.key});
@@ -16,15 +26,6 @@ class _RotationSceneV3State extends State<RotationSceneV3> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text(
-      //     'carrousel',
-      //     style: TextStyle(fontSize: 13),
-      //   ),
-      //   centerTitle: false,
-      //   elevation: 2,
-      //   backgroundColor: Colors.transparent,
-      // ),
       bottomNavigationBar: const SceneCardSelector(),
       body: Container(
         decoration: const BoxDecoration(
@@ -67,13 +68,11 @@ class MyScener extends StatefulWidget {
 }
 
 class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
-  late AnimationController _scaleController;
   late AnimationController _rotationController;
   late Animation _rotationTween;
   List<CardData> cardData = [];
   double radio = 200.0;
   double radioStep = 0;
-  // bool isMousePressed = false;
   double _dragX = 0;
   double selectedAngle = 0;
 
@@ -82,42 +81,20 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
     radioStep = (pi * 2) / numItems;
 
-    _scaleController = AnimationController(
-        duration: const Duration(milliseconds: 500), vsync: this);
-    _scaleController.addListener(() => setState(() {}));
-
     _rotationController = AnimationController(
         duration: const Duration(milliseconds: 500), vsync: this);
     _rotationController.addListener(() => setState(() {}));
 
     _rotationTween = Tween(begin: 0.0, end: 0.0).animate(_rotationController);
 
-    currentAngle = pi / 2 + (-_dragX * .006);
-
     onSelectCard.addListener(() {
       var idx = onSelectCard.value;
       _dragX = 0;
       selectedAngle = -idx * radioStep;
 
-      // currentAngle = initAngleOffset;
-      // if (currentAngle < selectedAngle) {
-      //   while ((selectedAngle - currentAngle).abs() > pi) {
-      //     currentAngle += pi * 2;
-      //   }
-      // } else {
-      //   while ((selectedAngle - currentAngle).abs() > pi) {
-      //     currentAngle -= pi * 2;
-      //   }
-      // }
-
-      print('#### onSelectCard: $idx');
-      print('selectedAngle: $selectedAngle');
-      print('currentAngle: $currentAngle');
-      print('initAngleOffset: $initAngleOffset');
-//      var currentAngle = initAngleOffset;
-
       var beginAngle = initAngleOffset - pi / 2;
-      print('beginAngle: $beginAngle');
+      // because one point can be expressed by multiple different angles
+      // we need to find the closest to the selected angle.
       if (beginAngle < selectedAngle) {
         while ((selectedAngle - beginAngle).abs() > pi) {
           beginAngle += pi * 2;
@@ -127,125 +104,67 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
           beginAngle -= pi * 2;
         }
       }
-      print('beginAngle: $beginAngle');
 
-      setState(() {
-        _rotationTween = Tween(begin: beginAngle, end: selectedAngle)
-            .animate(_rotationController);
-        // _scaleAnimForRotating();
-        _rotationController.reset();
-        _rotationController.forward().then((res) {
-          currentAngle = selectedAngle;
-        });
-      });
+      // animation the rotation
+      _rotationTween = Tween(begin: beginAngle, end: selectedAngle)
+          .animate(_rotationController);
+      _rotationController.reset();
+      _rotationController.forward();
     });
     super.initState();
   }
 
-  var initAngleOffset;
-  var currentAngle;
+  late double initAngleOffset;
+
   @override
   Widget build(BuildContext context) {
     initAngleOffset = pi / 2 + (-_dragX * .006);
-    //initAngleOffset += selectedAngle;
     initAngleOffset += _rotationTween.value;
-    //currentAngle = initAngleOffset;
-    currentAngle += -_dragX * .00006;
 
-    print('---- build');
-    print('_dragX: $_dragX');
-    print('rotationTween: ${_rotationTween.value}');
-    print('currentAngle: $currentAngle');
-    print('initAngleOffset: $initAngleOffset');
-    print('beginAngle: ${initAngleOffset - pi / 2}');
-
-    // process positions.
+    // positioning cards
     for (var i = 0; i < cardData.length; ++i) {
       var c = cardData[i];
       double ang = initAngleOffset + c.idx * radioStep;
-      // c.angle = ang + pi / 2;
       c.angle = ang;
       c.x = cos(ang) * radio;
-      c.y = sin(ang) * 40;
+      c.y = sin(ang) * 100;
       c.z = sin(ang) * radio;
-
-      if (c.idx == 0) {
-        print('0 angle: ${c.angle}');
-      } else if (c.idx == 1) {
-        print('1 angle: ${c.angle}');
-      }
     }
 
     // sort in Z axis.
     cardData.sort((a, b) => a.z.compareTo(b.z));
-
-    // print z order.
-    // for (var i = 0; i < cardData.length; ++i) {
-    //   var c = cardData[i];
-    //   print('z order: ${c.idx} - ${c.z}');
-    // }
 
     var list = cardData.map((vo) {
       var c = addCard(vo);
       var mt2 = Matrix4.identity();
       mt2.setEntry(3, 2, 0.001);
       mt2.translate(vo.x, vo.y, -vo.z);
+
+      // scale the card based on z position
       double scale = 1 + (vo.z / radio) * 0.5;
-      mt2.scale(scale, scale); // add this line to scale the card
-      // mt2.rotateY(vo.angle + pi);
+      mt2.scale(scale, scale);
+
       c = Transform(
         alignment: Alignment.center,
-        origin: Offset(0.0, -100 - _scaleController.value * 200.0),
+        origin: const Offset(0.0, 0.0),
         transform: mt2,
         child: c,
       );
-
-      // depth of field... doesnt work on web.
-//      var blur = .4 + ((1 - vo.z / radio) / 2) * 2;
-//      c = BackdropFilter(
-//        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-//        child: c,
-//      );
 
       return c;
     }).toList();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanDown: (e) {
-        print('++++ onPanDown');
-        // isMousePressed = true;
-        setState(() {});
-        // _scaleController.animateTo(1,
-        //     duration: const Duration(seconds: 1),
-        //     curve: Curves.fastLinearToSlowEaseIn);
-      },
+      onPanDown: (e) {},
       onPanUpdate: (e) {
-        print('++++ onPanUpdate');
-        print('delta: ${e.delta.dx}');
         _dragX += e.delta.dx;
-        print('_dragX: $_dragX');
         setState(() {});
       },
       onPanEnd: (e) {
-        print('++++ onPanEnd');
-        // isMousePressed = false;
-        // _scaleController.animateTo(0,
-        //     duration: const Duration(seconds: 1),
-        //     curve: Curves.fastLinearToSlowEaseIn);
-        setState(() {});
-
-        // select the nearest card.
-        /// get item with biggest z value in cardData
-        Future.delayed(const Duration(milliseconds: 100), () {
-          var maxZ =
-              cardData.reduce((curr, next) => curr.z > next.z ? curr : next);
-          print('max z: ${maxZ.idx} - ${maxZ.z}');
-          onSelectCard.value = maxZ.idx;
-        });
-
-        // var maxZ = cardData.reduce((curr, next) => curr.z > next.z ? curr : next);
-        // onSelectCard.value = maxZ.idx;
+        var maxZ =
+            cardData.reduce((curr, next) => curr.z > next.z ? curr : next);
+        onSelectCard.value = maxZ.idx;
       },
       child: Container(
         alignment: Alignment.center,
