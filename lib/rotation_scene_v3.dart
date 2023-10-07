@@ -1,11 +1,12 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 int numItems = 10;
-var onSelectCard = SelectCardNotifier(0);
+var onFrontCard = FrontCardNotifier(0);
 
-class SelectCardNotifier with ChangeNotifier {
-  SelectCardNotifier(this._value);
+class FrontCardNotifier with ChangeNotifier {
+  FrontCardNotifier(this._value);
 
   int _value = 0;
   int get value => _value;
@@ -68,48 +69,49 @@ class MyScener extends StatefulWidget {
 }
 
 class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
-  late AnimationController _rotationController;
-  late Animation _rotationTween;
+  late AnimationController _frontCardCtrl;
+  late Animation _frontCardTween;
   List<CardData> cardData = [];
   double radio = 200.0;
   double radioStep = 0;
   double _dragX = 0;
-  double selectedAngle = 0;
+  double frontAngle = 0;
 
   @override
   void initState() {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
     radioStep = (pi * 2) / numItems;
 
-    _rotationController = AnimationController(
-        duration: const Duration(milliseconds: 500), vsync: this);
-    _rotationController.addListener(() => setState(() {}));
+    _frontCardCtrl = AnimationController(
+        duration: const Duration(milliseconds: 300), vsync: this);
+    _frontCardCtrl.addListener(() => setState(() {}));
 
-    _rotationTween = Tween(begin: 0.0, end: 0.0).animate(_rotationController);
+    _frontCardTween = Tween(begin: 0.0, end: 0.0).animate(_frontCardCtrl);
 
-    onSelectCard.addListener(() {
-      var idx = onSelectCard.value;
+    // we want to center the front card
+    onFrontCard.addListener(() {
+      var idx = onFrontCard.value;
       _dragX = 0;
-      selectedAngle = -idx * radioStep;
+      frontAngle = -idx * radioStep;
 
       var beginAngle = initAngleOffset - pi / 2;
-      // because one point can be expressed by multiple different angles
-      // we need to find the closest to the selected angle.
-      if (beginAngle < selectedAngle) {
-        while ((selectedAngle - beginAngle).abs() > pi) {
+      // because one point can be expressed by multiple different angles in a trigonometric circle
+      // we need to find the closest to the front angle.
+      if (beginAngle < frontAngle) {
+        while ((frontAngle - beginAngle).abs() > pi) {
           beginAngle += pi * 2;
         }
       } else {
-        while ((selectedAngle - beginAngle).abs() > pi) {
+        while ((frontAngle - beginAngle).abs() > pi) {
           beginAngle -= pi * 2;
         }
       }
 
-      // animation the rotation
-      _rotationTween = Tween(begin: beginAngle, end: selectedAngle)
-          .animate(_rotationController);
-      _rotationController.reset();
-      _rotationController.forward();
+      // animate the front card to the selected angle
+      _frontCardTween =
+          Tween(begin: beginAngle, end: frontAngle).animate(_frontCardCtrl);
+      _frontCardCtrl.reset();
+      _frontCardCtrl.forward();
     });
     super.initState();
   }
@@ -119,9 +121,9 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     initAngleOffset = pi / 2 + (-_dragX * .006);
-    initAngleOffset += _rotationTween.value;
+    initAngleOffset += _frontCardTween.value;
 
-    // positioning cards
+    // positioning cards in a circle
     for (var i = 0; i < cardData.length; ++i) {
       var c = cardData[i];
       double ang = initAngleOffset + c.idx * radioStep;
@@ -134,10 +136,13 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     // sort in Z axis.
     cardData.sort((a, b) => a.z.compareTo(b.z));
 
+    // transform the cards
     var list = cardData.map((vo) {
       var c = addCard(vo);
       var mt2 = Matrix4.identity();
       mt2.setEntry(3, 2, 0.001);
+
+      // position the card based on x,y,z
       mt2.translate(vo.x, vo.y, -vo.z);
 
       // scale the card based on z position
@@ -162,9 +167,10 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
         setState(() {});
       },
       onPanEnd: (e) {
+        // Find the front card (with biggest z value), and re-center it.
         var maxZ =
             cardData.reduce((curr, next) => curr.z > next.z ? curr : next);
-        onSelectCard.value = maxZ.idx;
+        onFrontCard.value = maxZ.idx;
       },
       child: Container(
         alignment: Alignment.center,
@@ -227,7 +233,7 @@ class SceneCardSelector extends StatelessWidget {
                     child: OutlinedButton(
                       child: Text(index.toString(),
                           style: const TextStyle(color: Colors.white)),
-                      onPressed: () => onSelectCard.value = index,
+                      onPressed: () => onFrontCard.value = index,
                     ),
                   ),
                 )),
