@@ -70,23 +70,22 @@ class MyScener extends StatefulWidget {
 
 class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   late AnimationController _frontCardCtrl;
-  late Animation _frontCardTween;
+
   List<CardData> cardData = [];
   double radio = 200.0;
   double radioStep = 0;
+
   double _dragX = 0;
   double frontAngle = 0;
+  double angleOffset = 0;
 
   @override
   void initState() {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
     radioStep = (pi * 2) / numItems;
 
-    _frontCardCtrl = AnimationController(
-        duration: const Duration(milliseconds: 300), vsync: this);
+    _frontCardCtrl = AnimationController.unbounded(vsync: this);
     _frontCardCtrl.addListener(() => setState(() {}));
-
-    _frontCardTween = Tween(begin: 0.0, end: 0.0).animate(_frontCardCtrl);
 
     // we want to center the front card
     onFrontCard.addListener(() {
@@ -94,7 +93,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       _dragX = 0;
       frontAngle = -idx * radioStep;
 
-      var beginAngle = initAngleOffset - pi / 2;
+      var beginAngle = angleOffset - pi / 2;
       // because one point can be expressed by multiple different angles in a trigonometric circle
       // we need to find the closest to the front angle.
       if (beginAngle < frontAngle) {
@@ -107,26 +106,25 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
         }
       }
 
-      // animate the front card to the selected angle
-      _frontCardTween =
-          Tween(begin: beginAngle, end: frontAngle).animate(_frontCardCtrl);
-      _frontCardCtrl.reset();
-      _frontCardCtrl.forward();
+      // animate the front card to the front angle
+      _frontCardCtrl.value = beginAngle;
+      _frontCardCtrl.animateTo(
+        frontAngle,
+        duration: const Duration(milliseconds: 300),
+      );
     });
     super.initState();
   }
 
-  late double initAngleOffset;
-
   @override
   Widget build(BuildContext context) {
-    initAngleOffset = pi / 2 + (-_dragX * .006);
-    initAngleOffset += _frontCardTween.value;
+    angleOffset = pi / 2 + (-_dragX * .006);
+    angleOffset += _frontCardCtrl.value;
 
     // positioning cards in a circle
     for (var i = 0; i < cardData.length; ++i) {
       var c = cardData[i];
-      double ang = initAngleOffset + c.idx * radioStep;
+      double ang = angleOffset + c.idx * radioStep;
       c.angle = ang;
       c.x = cos(ang) * radio;
       c.y = sin(ang) * 100;
