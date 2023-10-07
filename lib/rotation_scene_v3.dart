@@ -1,20 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 
 int numItems = 10;
-var onFrontCard = FrontCardNotifier(0);
-
-class FrontCardNotifier with ChangeNotifier {
-  FrontCardNotifier(this._value);
-
-  int _value = 0;
-  int get value => _value;
-  set value(int val) {
-    _value = val;
-    notifyListeners();
-  }
-}
 
 class RotationSceneV3 extends StatefulWidget {
   const RotationSceneV3({super.key});
@@ -70,61 +59,89 @@ class MyScener extends StatefulWidget {
 
 class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   late AnimationController _frontCardCtrl;
+  late AnimationController _frictionCtrl;
 
   List<CardData> cardData = [];
   double radio = 200.0;
-  double radioStep = 0;
+
+  double angleStep = 0;
 
   double _dragX = 0;
+  double _velocityX = 0;
   double frontAngle = 0;
   double angleOffset = 0;
 
   @override
   void initState() {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
-    radioStep = (pi * 2) / numItems;
+    angleStep = (pi * 2) / numItems;
 
     _frontCardCtrl = AnimationController.unbounded(vsync: this);
     _frontCardCtrl.addListener(() => setState(() {}));
 
-    // we want to center the front card
-    onFrontCard.addListener(() {
-      var idx = onFrontCard.value;
-      _dragX = 0;
-      frontAngle = -idx * radioStep;
+    _frictionCtrl = AnimationController.unbounded(vsync: this);
+    _frictionCtrl.addListener(() => setState(() {}));
 
-      var beginAngle = angleOffset - pi / 2;
-      // because one point can be expressed by multiple different angles in a trigonometric circle
-      // we need to find the closest to the front angle.
-      if (beginAngle < frontAngle) {
-        while ((frontAngle - beginAngle).abs() > pi) {
-          beginAngle += pi * 2;
-        }
-      } else {
-        while ((frontAngle - beginAngle).abs() > pi) {
-          beginAngle -= pi * 2;
-        }
-      }
-
-      // animate the front card to the front angle
-      _frontCardCtrl.value = beginAngle;
-      _frontCardCtrl.animateTo(
-        frontAngle,
-        duration: const Duration(milliseconds: 300),
-      );
-    });
     super.initState();
+  }
+
+  void _frictionAnimation() {
+    _dragX = 0;
+    _frontCardCtrl.value = 0;
+
+    var beginAngle = angleOffset - pi / 2;
+
+    var simulate = FrictionSimulation(.00001, beginAngle, -_velocityX * .006);
+    _frictionCtrl.animateWith(simulate).whenComplete(() {
+      // re-center the front card
+      var maxZ = cardData.reduce(
+        (curr, next) => curr.z > next.z ? curr : next,
+      );
+      _frontCardAnimation(maxZ.idx);
+    });
+  }
+
+  void _frontCardAnimation(int idx) {
+    _dragX = 0;
+    _frictionCtrl.value = 0;
+
+    frontAngle = -idx * angleStep;
+
+    var beginAngle = angleOffset - pi / 2;
+    // because one point can be expressed by multiple different angles in a trigonometric circle
+    // we need to find the closest to the front angle.
+    if (beginAngle < frontAngle) {
+      while ((frontAngle - beginAngle).abs() > pi) {
+        beginAngle += pi * 2;
+      }
+    } else {
+      while ((frontAngle - beginAngle).abs() > pi) {
+        beginAngle -= pi * 2;
+      }
+    }
+
+    // animate the front card to the front angle
+    _frontCardCtrl.value = beginAngle;
+    _frontCardCtrl.animateTo(
+      frontAngle,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    double screenWidth = MediaQuery.of(context).size.width;
+    radio = screenWidth * 0.9 / 2;
+
     angleOffset = pi / 2 + (-_dragX * .006);
+    angleOffset += _frictionCtrl.value;
     angleOffset += _frontCardCtrl.value;
 
     // positioning cards in a circle
     for (var i = 0; i < cardData.length; ++i) {
       var c = cardData[i];
-      double ang = angleOffset + c.idx * radioStep;
+      double ang = angleOffset + c.idx * angleStep;
       c.angle = ang;
       c.x = cos(ang) * radio;
       c.y = sin(ang) * 100;
@@ -135,6 +152,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     cardData.sort((a, b) => a.z.compareTo(b.z));
 
     // transform the cards
+    print('add card');
     var list = cardData.map((vo) {
       var c = addCard(vo);
       var mt2 = Matrix4.identity();
@@ -165,10 +183,8 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
         setState(() {});
       },
       onPanEnd: (e) {
-        // Find the front card (with biggest z value), and re-center it.
-        var maxZ =
-            cardData.reduce((curr, next) => curr.z > next.z ? curr : next);
-        onFrontCard.value = maxZ.idx;
+        _velocityX = e.velocity.pixelsPerSecond.dx;
+        _frictionAnimation();
       },
       child: Container(
         alignment: Alignment.center,
@@ -181,34 +197,36 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   }
 
   Widget addCard(CardData vo) {
-    var alpha = ((1 - vo.z / radio) / 2) * .6;
+    var shadowAlpha = ((1 - vo.z / radio) / 2) * .6;
+    // var cardAlpha = 0.54 + 0.46 * vo.z / radio;
+    var cardAlpha = 0.575 + 0.425 * vo.z / radio;
+
     Widget c;
-    c = Container(
-      margin: const EdgeInsets.all(12),
-      width: 150,
-      height: 100,
-      alignment: Alignment.center,
-      foregroundDecoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.black.withOpacity(alpha),
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0.1, .9],
-          colors: [vo.lightColor, vo.color],
+    c = Opacity(
+      opacity: cardAlpha,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        width: 150,
+        height: 100,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            stops: const [0.1, .9],
+            colors: [vo.lightColor, vo.color],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(.2 + shadowAlpha * .2),
+                spreadRadius: 1,
+                blurRadius: 12,
+                offset: const Offset(0, 2))
+          ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(.2 + alpha * .2),
-              spreadRadius: 1,
-              blurRadius: 12,
-              offset: const Offset(0, 2))
-        ],
+        child: Text('ITEM ${vo.idx}'),
       ),
-      child: Text('ITEM ${vo.idx}'),
     );
     return c;
   }
@@ -231,7 +249,7 @@ class SceneCardSelector extends StatelessWidget {
                     child: OutlinedButton(
                       child: Text(index.toString(),
                           style: const TextStyle(color: Colors.white)),
-                      onPressed: () => onFrontCard.value = index,
+                      onPressed: () {},
                     ),
                   ),
                 )),
