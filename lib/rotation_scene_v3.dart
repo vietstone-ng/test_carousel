@@ -16,7 +16,9 @@ class _RotationSceneV3State extends State<RotationSceneV3> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: const SceneCardSelector(),
+      // bottomNavigationBar: const SceneCardSelector(),
+      backgroundColor: Colors.blueAccent,
+      // bottomNavigationBar: const PageIndicator(),
       body: Container(
         decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -74,7 +76,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   @override
   void initState() {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
-    angleStep = (pi * 2) / numItems;
+    angleStep = -(pi * 2) / numItems;
 
     _frontCardCtrl = AnimationController.unbounded(vsync: this);
     _frontCardCtrl.addListener(() => setState(() {}));
@@ -124,7 +126,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     _frontCardCtrl.value = beginAngle;
     _frontCardCtrl.animateTo(
       frontAngle,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 150),
       curve: Curves.easeInOut,
     );
   }
@@ -132,7 +134,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
-    radio = screenWidth * 0.9 / 2;
+    radio = screenWidth * 0.93 / 2;
 
     angleOffset = pi / 2 + (-_dragX * .006);
     angleOffset += _frictionCtrl.value;
@@ -144,15 +146,18 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       double ang = angleOffset + c.idx * angleStep;
       c.angle = ang;
       c.x = cos(ang) * radio;
-      c.y = sin(ang) * 100;
+      c.y = sin(ang) * 130 - 50;
       c.z = sin(ang) * radio;
     }
 
     // sort in Z axis.
     cardData.sort((a, b) => a.z.compareTo(b.z));
 
+    var maxZ = cardData.reduce(
+      (curr, next) => curr.z > next.z ? curr : next,
+    );
+
     // transform the cards
-    print('add card');
     var list = cardData.map((vo) {
       var c = addCard(vo);
       var mt2 = Matrix4.identity();
@@ -175,24 +180,31 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       return c;
     }).toList();
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanDown: (e) {},
-      onPanUpdate: (e) {
-        _dragX += e.delta.dx;
-        setState(() {});
-      },
-      onPanEnd: (e) {
-        _velocityX = e.velocity.pixelsPerSecond.dx;
-        _frictionAnimation();
-      },
-      child: Container(
-        alignment: Alignment.center,
-        child: Stack(
-          alignment: Alignment.center,
-          children: list,
+    return Column(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanDown: (e) {},
+            onPanUpdate: (e) {
+              _dragX += e.delta.dx;
+              setState(() {});
+            },
+            onPanEnd: (e) {
+              _velocityX = e.velocity.pixelsPerSecond.dx;
+              _frictionAnimation();
+            },
+            child: Container(
+              alignment: Alignment.center,
+              child: Stack(
+                alignment: Alignment.center,
+                children: list,
+              ),
+            ),
+          ),
         ),
-      ),
+        PageIndicator(selectedIndex: maxZ.idx),
+      ],
     );
   }
 
@@ -229,6 +241,51 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       ),
     );
     return c;
+  }
+}
+
+class PageIndicator extends StatelessWidget {
+  const PageIndicator({
+    super.key,
+    this.selectedIndex = 0,
+  });
+
+  final int selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(
+          numItems,
+          (index) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: AnimatedContainer(
+                curve: Curves.easeIn,
+                duration: const Duration(milliseconds: 150),
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color:
+                      Colors.white.withOpacity(index == selectedIndex ? 1 : .3),
+                  borderRadius: BorderRadius.circular(7),
+                  boxShadow: index == selectedIndex
+                      ? const [
+                          BoxShadow(
+                              color: Colors.white,
+                              spreadRadius: 1,
+                              blurRadius: 10,
+                              offset: Offset(0, 0))
+                        ]
+                      : null,
+                )),
+          ),
+        ),
+      ),
+    );
   }
 }
 
