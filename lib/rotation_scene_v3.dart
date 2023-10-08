@@ -10,7 +10,7 @@ class RotationSceneV3 extends StatefulWidget {
   const RotationSceneV3({super.key});
 
   @override
-  _RotationSceneV3State createState() => _RotationSceneV3State();
+  State<RotationSceneV3> createState() => _RotationSceneV3State();
 }
 
 class _RotationSceneV3State extends State<RotationSceneV3> {
@@ -54,15 +54,17 @@ class CardData {
 }
 
 class MyScener extends StatefulWidget {
-  const MyScener({super.key});
+  const MyScener({super.key, this.children = const []});
+
+  final List<Widget> children;
 
   @override
-  _MyScenerState createState() => _MyScenerState();
+  State<MyScener> createState() => _MyScenerState();
 }
 
 class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
-  late AnimationController _frontCardCtrl;
-  late AnimationController _frictionCtrl;
+  AnimationController? _frontCardCtrl;
+  AnimationController? _frictionCtrl;
 
   List<CardData> cardData = [];
   double radio = 200.0;
@@ -78,18 +80,34 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
 
   @override
   void initState() {
+    super.initState();
+
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
     angleStep = -(pi * 2) / numItems;
 
+    _frontCardCtrl?.dispose();
     _frontCardCtrl = AnimationController.unbounded(vsync: this);
-    _frontCardCtrl.addListener(() => setState(() {}));
+    _frontCardCtrl?.addListener(() => setState(() {}));
 
+    _frictionCtrl?.dispose();
     _frictionCtrl = AnimationController.unbounded(vsync: this);
-    _frictionCtrl.addListener(() => setState(() {}));
+    _frictionCtrl?.addListener(() => setState(() {}));
 
     _autoSlide();
+  }
 
-    super.initState();
+  @override
+  void dispose() {
+    _frontCardCtrl?.dispose();
+    _frictionCtrl?.dispose();
+    _autoSlideTimer?.cancel();
+
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant MyScener oldWidget) {
+    super.didUpdateWidget(oldWidget);
   }
 
   void _autoSlide() {
@@ -112,12 +130,12 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
 
   void _frictionAnimation() {
     _dragX = 0;
-    _frontCardCtrl.value = 0;
+    _frontCardCtrl?.value = 0;
 
     var beginAngle = angleOffset - pi / 2;
 
     var simulate = FrictionSimulation(.00001, beginAngle, -_velocityX * .006);
-    _frictionCtrl.animateWith(simulate).whenComplete(() {
+    _frictionCtrl?.animateWith(simulate).whenComplete(() {
       // re-center the front card
       var maxZ = cardData.reduce(
         (curr, next) => curr.z > next.z ? curr : next,
@@ -132,7 +150,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       {Duration duration = const Duration(milliseconds: 150),
       VoidCallback? whenComplete}) {
     _dragX = 0;
-    _frictionCtrl.value = 0;
+    _frictionCtrl?.value = 0;
 
     frontAngle = -idx * angleStep;
 
@@ -150,9 +168,9 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     }
 
     // animate the front card to the front angle
-    _frontCardCtrl.value = beginAngle;
+    _frontCardCtrl?.value = beginAngle;
     _frontCardCtrl
-        .animateTo(
+        ?.animateTo(
           frontAngle,
           duration: duration,
           curve: Curves.easeInOut,
@@ -166,8 +184,8 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     radio = screenWidth * 0.93 / 2;
 
     angleOffset = pi / 2 + (-_dragX * .006);
-    angleOffset += _frictionCtrl.value;
-    angleOffset += _frontCardCtrl.value;
+    angleOffset += _frictionCtrl?.value ?? 0;
+    angleOffset += _frontCardCtrl?.value ?? 0;
 
     // positioning cards in a circle
     for (var i = 0; i < cardData.length; ++i) {
@@ -215,8 +233,8 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onPanDown: (e) {
-              _frictionCtrl.stop();
-              _frontCardCtrl.stop();
+              _frictionCtrl?.stop();
+              _frontCardCtrl?.stop();
               _autoSlideTimer?.cancel();
             },
             onPanUpdate: (e) {
