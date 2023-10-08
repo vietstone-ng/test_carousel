@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -73,6 +74,8 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   double frontAngle = 0;
   double angleOffset = 0;
 
+  Timer? _autoSlideTimer;
+
   @override
   void initState() {
     cardData = List.generate(numItems, (index) => CardData(index)).toList();
@@ -84,7 +87,27 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
     _frictionCtrl = AnimationController.unbounded(vsync: this);
     _frictionCtrl.addListener(() => setState(() {}));
 
+    _autoSlide();
+
     super.initState();
+  }
+
+  void _autoSlide() {
+    _autoSlideTimer?.cancel();
+    _autoSlideTimer = Timer(const Duration(seconds: 2), () {
+      var maxZ = cardData.reduce(
+        (curr, next) => curr.z > next.z ? curr : next,
+      );
+      var nextIdx = (maxZ.idx + 1) % numItems;
+
+      _frontCardAnimation(
+        nextIdx,
+        duration: const Duration(milliseconds: 350),
+        whenComplete: () {
+          _autoSlide();
+        },
+      );
+    });
   }
 
   void _frictionAnimation() {
@@ -99,11 +122,15 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       var maxZ = cardData.reduce(
         (curr, next) => curr.z > next.z ? curr : next,
       );
-      _frontCardAnimation(maxZ.idx);
+      _frontCardAnimation(maxZ.idx, whenComplete: () {
+        _autoSlide();
+      });
     });
   }
 
-  void _frontCardAnimation(int idx) {
+  void _frontCardAnimation(int idx,
+      {Duration duration = const Duration(milliseconds: 150),
+      VoidCallback? whenComplete}) {
     _dragX = 0;
     _frictionCtrl.value = 0;
 
@@ -124,11 +151,13 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
 
     // animate the front card to the front angle
     _frontCardCtrl.value = beginAngle;
-    _frontCardCtrl.animateTo(
-      frontAngle,
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeInOut,
-    );
+    _frontCardCtrl
+        .animateTo(
+          frontAngle,
+          duration: duration,
+          curve: Curves.easeInOut,
+        )
+        .whenComplete(() => whenComplete?.call());
   }
 
   @override
@@ -185,7 +214,11 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onPanDown: (e) {},
+            onPanDown: (e) {
+              _frictionCtrl.stop();
+              _frontCardCtrl.stop();
+              _autoSlideTimer?.cancel();
+            },
             onPanUpdate: (e) {
               _dragX += e.delta.dx;
               setState(() {});
@@ -193,6 +226,9 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
             onPanEnd: (e) {
               _velocityX = e.velocity.pixelsPerSecond.dx;
               _frictionAnimation();
+            },
+            onPanCancel: () {
+              _autoSlide();
             },
             child: Container(
               alignment: Alignment.center,
