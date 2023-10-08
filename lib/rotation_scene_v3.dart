@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
-int numItems = 10;
+// int numItems = 10;
 
 class RotationSceneV3 extends StatefulWidget {
   const RotationSceneV3({super.key});
@@ -28,46 +28,52 @@ class _RotationSceneV3State extends State<RotationSceneV3> {
           colors: [Color(0xff74ABE4), Color(0xffA892ED)],
           stops: [0, 1],
         )),
-        child: const MyScener(),
+        child: CigCarousel(
+          children: List.generate(
+              10,
+              (index) => Container(
+                    color: Colors.primaries[index % Colors.primaries.length],
+                    alignment: Alignment.center,
+                    child: Text(
+                      index.toString(),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  )),
+        ),
       ),
     );
   }
 }
 
 class CardData {
-  late Color color;
   late double x, y, z, angle;
   final int idx;
-  double alpha = 0;
+  final Widget widget;
 
-  Color get lightColor {
-    var val = HSVColor.fromColor(color);
-    return val.withSaturation(.5).withValue(.8).toColor();
-  }
-
-  CardData(this.idx) {
-    color = Colors.primaries[idx % Colors.primaries.length];
+  CardData(this.idx, this.widget) {
     x = 0;
     y = 0;
     z = 0;
+    angle = 0;
   }
 }
 
-class MyScener extends StatefulWidget {
-  const MyScener({super.key, this.children = const []});
+class CigCarousel extends StatefulWidget {
+  const CigCarousel({super.key, this.children = const []});
 
   final List<Widget> children;
 
   @override
-  State<MyScener> createState() => _MyScenerState();
+  State<CigCarousel> createState() => _CigCarouselState();
 }
 
-class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
+class _CigCarouselState extends State<CigCarousel>
+    with TickerProviderStateMixin {
   AnimationController? _frontCardCtrl;
   AnimationController? _frictionCtrl;
 
   List<CardData> cardData = [];
-  double radio = 200.0;
+  double radius = 200.0;
 
   double angleStep = 0;
 
@@ -82,8 +88,12 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    cardData = List.generate(numItems, (index) => CardData(index)).toList();
-    angleStep = -(pi * 2) / numItems;
+    cardData = widget.children
+        .asMap()
+        .map((key, value) => MapEntry(key, CardData(key, value)))
+        .values
+        .toList();
+    angleStep = -(pi * 2) / widget.children.length;
 
     _frontCardCtrl?.dispose();
     _frontCardCtrl = AnimationController.unbounded(vsync: this);
@@ -106,7 +116,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   }
 
   @override
-  void didUpdateWidget(covariant MyScener oldWidget) {
+  void didUpdateWidget(covariant CigCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
   }
 
@@ -116,7 +126,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       var maxZ = cardData.reduce(
         (curr, next) => curr.z > next.z ? curr : next,
       );
-      var nextIdx = (maxZ.idx + 1) % numItems;
+      var nextIdx = (maxZ.idx + 1) % widget.children.length;
 
       _frontCardAnimation(
         nextIdx,
@@ -181,7 +191,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
-    radio = screenWidth * 0.93 / 2;
+    radius = screenWidth * 0.93 / 2;
 
     angleOffset = pi / 2 + (-_dragX * .006);
     angleOffset += _frictionCtrl?.value ?? 0;
@@ -192,9 +202,9 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       var c = cardData[i];
       double ang = angleOffset + c.idx * angleStep;
       c.angle = ang;
-      c.x = cos(ang) * radio;
+      c.x = cos(ang) * radius;
       c.y = sin(ang) * 130 - 50;
-      c.z = sin(ang) * radio;
+      c.z = sin(ang) * radius;
     }
 
     // sort in Z axis.
@@ -214,7 +224,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
       mt2.translate(vo.x, vo.y, -vo.z);
 
       // scale the card based on z position
-      double scale = 1 + (vo.z / radio) * 0.5;
+      double scale = 1 + (vo.z / radius) * 0.5;
       mt2.scale(scale, scale);
 
       c = Transform(
@@ -257,31 +267,26 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
             ),
           ),
         ),
-        PageIndicator(selectedIndex: maxZ.idx),
+        PageIndicator(
+          selectedIndex: maxZ.idx,
+          length: widget.children.length,
+        ),
       ],
     );
   }
 
   Widget addCard(CardData vo) {
-    var shadowAlpha = ((1 - vo.z / radio) / 2) * .6;
+    var shadowAlpha = ((1 - vo.z / radius) / 2) * .6;
     // var cardAlpha = 0.54 + 0.46 * vo.z / radio;
-    var cardAlpha = 0.575 + 0.425 * vo.z / radio;
+    var cardAlpha = 0.575 + 0.425 * vo.z / radius;
 
     Widget c;
     c = Opacity(
       opacity: cardAlpha,
       child: Container(
-        margin: const EdgeInsets.all(12),
         width: 150,
         height: 100,
-        alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            stops: const [0.1, .9],
-            colors: [vo.lightColor, vo.color],
-          ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -291,7 +296,7 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
                 offset: const Offset(0, 2))
           ],
         ),
-        child: Text('ITEM ${vo.idx}'),
+        child: vo.widget,
       ),
     );
     return c;
@@ -301,20 +306,22 @@ class _MyScenerState extends State<MyScener> with TickerProviderStateMixin {
 class PageIndicator extends StatelessWidget {
   const PageIndicator({
     super.key,
-    this.selectedIndex = 0,
+    required this.selectedIndex,
+    required this.length,
   });
 
   final int selectedIndex;
+  final int length;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 20,
+      height: 40,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: List.generate(
-          numItems,
+          length,
           (index) => Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: AnimatedContainer(
@@ -338,32 +345,6 @@ class PageIndicator extends StatelessWidget {
                 )),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class SceneCardSelector extends StatelessWidget {
-  const SceneCardSelector({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black,
-      height: 80,
-      child: Row(
-        children: List.generate(
-            numItems,
-            (index) => Expanded(
-                  child: SizedBox(
-                    height: 80,
-                    child: OutlinedButton(
-                      child: Text(index.toString(),
-                          style: const TextStyle(color: Colors.white)),
-                      onPressed: () {},
-                    ),
-                  ),
-                )),
       ),
     );
   }
